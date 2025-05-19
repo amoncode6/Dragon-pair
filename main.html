@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0e17">
+  <link rel="icon" type="image/png" href="https://files.catbox.moe/4tk6jl.jpg">
+  
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <style>
+    :root {
+      --primary: #00f7ff;
+      --secondary: #1e3a78;
+      --bg: #0a0e17;
+      --glass: rgba(255, 255, 255, 0.05);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: white;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      position: relative;
+    }
+
+    .video-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      overflow: hidden;
+      background: linear-gradient(45deg, var(--bg) 30%, rgba(10, 14, 23, 0.8));
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      mix-blend-mode: screen;
+      opacity: 0.15;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      margin-bottom: 2rem;
+      background: linear-gradient(45deg, var(--primary), #FF00FFEA);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: textFloat 3s ease-in-out infinite;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 800px;
+      margin: 2rem 0;
+    }
+
+    .btn {
+      padding: 1.25rem;
+      border: none;
+      border-radius: 12px;
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      color: lightgreen;
+      font-size: 1.3rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(0, 247, 255, 0.1);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn i {
+      font-size: 1.3em;
+    }
+
+    footer {
+      position: fixed;
+      bottom: 1.5rem;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.9rem;
+    }
+
+    @keyframes textFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @media (max-width: 768px) {
+      .button-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="video-container">
+      <video autoplay muted loop playsinline>
+        <source src="https://files.catbox.moe/4okth9.mp4" type="video/mp4">
+      </video>
+    </div>
+
+    <h1>Pairing Platform</h1>
+
+    <div class="button-grid">
+      <button class="btn" onclick="window.open('/pair')">
+        <i class="fas fa-link"></i>
+        Pair Device
+      </button>
+      
+      <button class="btn" onclick="window.open('https://github.com/XdKing2')">
+        <i class="fab fa-github"></i>
+        Developer Profile
+      </button>
+
+      <button class="btn" onclick="window.open('https://t.me/malvintech')">
+        <i class="fab fa-telegram"></i>
+        Telegram Chat
+      </button>
+
+      <button class="btn" onclick="window.open('https://whatsapp.com/channel/0029VbA6MSYJUM2TVOzCSb2A')">
+        <i class="fab fa-whatsapp"></i>
+        WhatsApp Group
+      </button>
+    </div>
+
+    <footer>
+      Malvin King &copy; 2025 |  Pairing System
+    </footer>
+  </div>
+
+  <script>
+    // Modern intersection observer for animations
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = 1;
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn, h1').forEach(el => {
+      el.style.opacity = 0;
+      el.style.transform = 'translateY(20px)';
+      observer.observe(el);
+    });
+
+    // Service worker registration for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('SW registered:', registration);
+          })
+          .catch(error => {
+            console.log('SW registration failed:', error);
+          });
+      });
+    }
+  </script>
+</body>
+  </html>

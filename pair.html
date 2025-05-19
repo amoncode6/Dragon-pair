@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" sizes="32x32" href="https://files.catbox.moe/4tk6jl.jpg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title> Malvin Creds Generator</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #04e5ff;
+      --secondary: #00bcd4;
+      --background: linear-gradient(135deg, #00bcd4, #1a1a1a);
+      --glass: rgba(255, 255, 255, 0.05);
+      --text: rgba(255, 255, 255, 0.95);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background: var(--background);
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      padding: 1rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      margin: auto;
+      padding: 2rem;
+      background: var(--glass);
+      border-radius: 24px;
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+      transform: translateY(0);
+      transition: transform 0.3s ease;
+    }
+
+    .container:hover {
+      transform: translateY(-4px);
+    }
+
+    .logo-container {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+      object-fit: cover;
+      border: 2px solid var(--primary);
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.2);
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    input {
+      width: 100%;
+      padding: 1rem 1rem 1rem 3rem;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.2);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    button {
+      width: 100%;
+      padding: 1rem;
+      background: var(--primary);
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    button:hover {
+      background: var(--secondary);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.3);
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 1rem;
+      color: var(--primary);
+    }
+
+    .loading::after {
+      content: "";
+      display: inline-block;
+      width: 1.2em;
+      height: 1.2em;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .message {
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+    }
+
+    .message.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .success {
+      background: rgba(0, 255, 150, 0.1);
+      border: 1px solid rgba(0, 255, 150, 0.2);
+      color: #00ff96;
+    }
+
+    .error {
+      background: rgba(255, 50, 50, 0.1);
+      border: 1px solid rgba(255, 50, 50, 0.2);
+      color: #ff3232;
+    }
+
+    .github-link {
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    .github-icon {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .github-icon:hover {
+      color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem 1rem 1rem;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 1.5rem;
+        border-radius: 20px;
+      }
+
+      input, button {
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-container">
+      <img src="https://files.catbox.moe/4tk6jl.jpg" alt="Logo" class="logo">
+      <h1>Malvin Creds</h1>
+      <p class="subtitle">Creds Generator</p>
+      <p class="subtitle">Enter your phone number with country code</p>
+    </div>
+
+    <div class="input-group">
+      <i class="fas fa-mobile-alt input-icon"></i>
+      <input type="tel" id="number" placeholder="Example: 2638147578xx" aria-label="Phone number input">
+    </div>
+
+    <button id="submit">
+      <i class="fas fa-key"></i>
+      Generate Code
+    </button>
+
+    <div id="loading" class="loading"></div>
+    <div id="pair" class="message"></div>
+
+    <div class="github-link">
+      <a href="https://github.com/XdKing2" target="_blank" aria-label="GitHub repository">
+        <i class="fab fa-github github-icon"></i>
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    Credit to Malvin King• © 2025 All rights reserved
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.0.0-alpha.1/axios.min.js"></script>
+  <script>
+    const pairElement = document.getElementById("pair");
+    const submitButton = document.getElementById("submit");
+    const numberInput = document.getElementById("number");
+    const loadingElement = document.getElementById("loading");
+
+    submitButton.addEventListener("click", async (e) => {
+      e.preventDefault();
+      loadingElement.style.display = "block";
+      pairElement.classList.remove("visible");
+      
+      const rawNumber = numberInput.value.replace(/\D/g, "");
+      
+      if (!rawNumber) {
+        showError("Please enter a valid phone number");
+        return;
+      }
+
+      if (rawNumber.length < 11) {
+        showError("Number must be at least 11 digits");
+        return;
+      }
+
+      try {
+        const { data } = await axios.get(`/code?number=${rawNumber}`);
+        const code = data.code || "Service unavailable";
+        
+        pairElement.innerHTML = `
+          <div class="success">
+            <i class="fas fa-check-circle"></i>
+            YOUR CODE: <strong>${code}</strong>
+          </div>
+        `;
+        pairElement.classList.add("visible");
+      } catch (error) {
+        showError("<i class='fas fa-times-circle'></i> Failed to generate code. Please try again.");
+      } finally {
+        loadingElement.style.display = "none";
+      }
+    });
+
+    function showError(message) {
+      pairElement.innerHTML = `<div class="error">${message}</div>`;
+      pairElement.classList.add("visible");
+      loadingElement.style.display = "none";
+    }
+  </script>
+</body>
+        </html>
