@@ -72,7 +72,7 @@ router.get('/', async (req, res) => {
 🛰️ *Next Step:* Bot Deployment
 
 📌 *Your Checklist:*  
-• Push `creds.json` to your GitHub fork  
+• Upload creds.json to your GitHub fork in session folder 
 • Launch the bot instance to go live
 
 🧠 *Developer Info:* 
