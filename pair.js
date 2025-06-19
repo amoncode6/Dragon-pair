@@ -88,16 +88,20 @@ router.get('/', async (req, res) => {
 ↪ [MK-Bot]
 (https://github.com/XdKing2/Mk-bot)
 
+↪ [Zenthra-Bot]
+(https://github.com/XdKing2/Zenthra-bot)
+
+
 ━━━━━━━━━━━━━━━━━━━━━━━  
 
-🏁 *About MALVIN ORG:* 
+🏁 *About MALVIN King:* 
 • Tech Innovation Collective  
 • Open-source Builders  
 • Fields: AI, Bots, Automation  
 • Motto: _“Empower through Code”_
 
 🌐 *Community Access:*  
-[Join WhatsApp Channel](https://whatsapp.com/channel/0029VbA6MSYJUM2TVOzCSb2A)
+[Join WhatsApp Channel](https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S)
 
 ⚠️ *Reminders:*  
 • Keep credentials private  
