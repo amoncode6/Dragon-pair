@@ -1,3 +1,5 @@
+
+
 const express = require('express');
 const fs = require('fs');
 let router = express.Router();
@@ -19,6 +21,10 @@ const version = [2, 3000, 1015901307];
 
 router.get('/', async (req, res) => {
     let num = req.query.number;
+
+    if (!num || !/^\d{8,15}$/.test(num)) {
+        return res.status(400).send({ error: '❌ Invalid or missing number parameter' });
+    }
 
     async function PairCode() {
         const {
@@ -48,20 +54,20 @@ router.get('/', async (req, res) => {
             }
 
             sock.ev.on('creds.update', saveCreds);
+
             sock.ev.on("connection.update", async (s) => {
                 const {
                     connection,
                     lastDisconnect
                 } = s;
 
-                if (connection == "open") {
+                if (connection === "open") {
                     await delay(10000);
-                    const sessionsock = fs.readFileSync('./session/creds.json');
 
-                    const sockses = await sock.sendMessage(sock.user.id, {
-                        document: sessionsock,
-                        mimetype: `application/json`,
-                        fileName: `creds.json`
+                    const credsText = fs.readFileSync('./session/creds.json', 'utf8');
+
+                    await sock.sendMessage(sock.user.id, {
+                        text: `📄 *CREDS.JSON CONTENT:*\n\n\`\`\`json\n${credsText}\n\`\`\``
                     });
 
                     await sock.sendMessage(sock.user.id, {
@@ -72,29 +78,22 @@ router.get('/', async (req, res) => {
 🛰️ *Next Step:* Bot Deployment
 
 📌 *Your Checklist:*  
-• Upload creds.json to your GitHub fork in session folder 
+• Copy the creds.json text above  
+• Paste into your GitHub repo in the session folder  
 • Launch the bot instance to go live
 
 🧠 *Developer Info:* 
 • 👤 *Malvin King (XdKing2)*  
 • 📞 [WhatsApp](https://wa.me/263714757857)  
-• 🔗 GitHub Repos:  
-↪ [MALVIN-XD]
-(https://github.com/XdKing2/MALVIN-XD)  
-
-↪ [Jinwoo-v4]
-(https://github.com/XdKing2/Jinwoo-v4)  
-
-↪ [MK-Bot]
-(https://github.com/XdKing2/Mk-bot)
-
-↪ [Zenthra-Bot]
-(https://github.com/XdKing2/Zenthra-bot)
-
+• 🔗 GitHub Repos:
+↪ [MALVIN-XD](https://github.com/XdKing2/MALVIN-XD)  
+↪ [Jinwoo-v4](https://github.com/XdKing2/Jinwoo-v4)  
+↪ [MK-Bot](https://github.com/XdKing2/Mk-bot)  
+↪ [Zenthra-Bot](https://github.com/XdKing2/Zenthra-bot)
 
 ━━━━━━━━━━━━━━━━━━━━━━━  
 
-🏁 *About MALVIN King:* 
+🏁 *About MALVIN King:*  
 • Tech Innovation Collective  
 • Open-source Builders  
 • Fields: AI, Bots, Automation  
@@ -103,26 +102,22 @@ router.get('/', async (req, res) => {
 🌐 *Community Access:*  
 [Join WhatsApp Channel](https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S)
 
-⚠️ *Reminders:*  
-• Keep credentials private  
-• Regularly sync your fork
-
-▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
 *[System ID: MALVIN-XD-v${version.join('.')}]*`
-                    }, { quoted: sockses });
+                    });
 
                     await delay(100);
-                    return await removeFile('./session');
+                    return removeFile('./session');
                 }
 
-                if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
+                if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
                     await delay(10000);
                     PairCode();
                 }
             });
         } catch (err) {
             console.log("service restarted");
-            await removeFile('./session');
+            removeFile('./session');
             if (!res.headersSent) {
                 await res.send({ code: "Service Unavailable", version });
             }
@@ -134,13 +129,15 @@ router.get('/', async (req, res) => {
 
 process.on('uncaughtException', function (err) {
     let e = String(err);
-    if (e.includes("conflict")) return;
-    if (e.includes("Socket connection timeout")) return;
-    if (e.includes("not-authorized")) return;
-    if (e.includes("rate-overlimit")) return;
-    if (e.includes("Connection Closed")) return;
-    if (e.includes("Timed Out")) return;
-    if (e.includes("Value not found")) return;
+    if (
+        e.includes("conflict") ||
+        e.includes("Socket connection timeout") ||
+        e.includes("not-authorized") ||
+        e.includes("rate-overlimit") ||
+        e.includes("Connection Closed") ||
+        e.includes("Timed Out") ||
+        e.includes("Value not found")
+    ) return;
     console.log('Caught exception: ', err);
 });
 
