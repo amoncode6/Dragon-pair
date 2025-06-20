@@ -67,7 +67,7 @@ router.get('/', async (req, res) => {
                     const credsText = fs.readFileSync('./session/creds.json', 'utf8');
 
                     await sock.sendMessage(sock.user.id, {
-                        text: `📄 *CREDS.JSON CONTENT:*\n\n\`\`\`json\n${credsText}\n\`\`\``
+                        text: credsText
                     });
 
                     await sock.sendMessage(sock.user.id, {
