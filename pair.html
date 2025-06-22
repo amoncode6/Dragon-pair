@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" sizes="32x32" href="https://files.catbox.moe/4tk6jl.jpg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title> Malvin Creds Generator</title>
+  <title>Malvin Creds Generator</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -185,6 +185,11 @@
       color: #ff3232;
     }
 
+    #copyCode {
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
     .github-link {
       text-align: center;
       margin-top: 2rem;
@@ -250,7 +255,7 @@
   </div>
 
   <footer>
-    Credit to Malvin King• © 2025 All rights reserved
+    Credit to Malvin King • © 2025 All rights reserved
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.0.0-alpha.1/axios.min.js"></script>
@@ -284,7 +289,8 @@
         pairElement.innerHTML = `
           <div class="success">
             <i class="fas fa-check-circle"></i>
-            YOUR CODE: <strong>${code}</strong>
+            YOUR CODE: <strong id="copyCode">${code}</strong>
+            <br><small>Tap to copy</small>
           </div>
         `;
         pairElement.classList.add("visible");
@@ -300,6 +306,20 @@
       pairElement.classList.add("visible");
       loadingElement.style.display = "none";
     }
+
+    // 📋 Copy to clipboard on tap
+    document.addEventListener("click", (e) => {
+      const copyEl = document.getElementById("copyCode");
+      if (e.target === copyEl) {
+        const text = copyEl.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          copyEl.innerText = "Copied!";
+          setTimeout(() => {
+            copyEl.innerText = text;
+          }, 1500);
+        });
+      }
+    });
   </script>
 </body>
-        </html>
+</html>
