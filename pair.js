@@ -1,7 +1,6 @@
-
-
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 let router = express.Router();
 const pino = require("pino");
 const {
@@ -11,9 +10,31 @@ const {
     makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
+// Global flag to prevent multiple pairing attempts
+let pairingInProgress = false;
+let activeSocket = null;
+
 function removeFile(FilePath) {
-    if (!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
+    try {
+        if (!fs.existsSync(FilePath)) return false;
+        fs.rmSync(FilePath, { recursive: true, force: true });
+        return true;
+    } catch (error) {
+        console.error('Error removing file:', error);
+        return false;
+    }
+}
+
+function safeReadFile(filePath) {
+    try {
+        if (fs.existsSync(filePath)) {
+            return fs.readFileSync(filePath, 'utf8');
+        }
+        return null;
+    } catch (error) {
+        console.error('Error reading file:', error);
+        return null;
+    }
 }
 
 // Define version information
@@ -26,13 +47,44 @@ router.get('/', async (req, res) => {
         return res.status(400).send({ error: '❌ Invalid or missing number parameter' });
     }
 
+    // Prevent multiple simultaneous pairing attempts
+    if (pairingInProgress) {
+        return res.status(503).send({ 
+            error: '⏳ Pairing service is currently busy. Please try again in 30 seconds.',
+            version 
+        });
+    }
+
+    // Set response timeout (5 minutes)
+    res.setTimeout(300000, () => {
+        if (!res.headersSent) {
+            res.status(504).send({ error: 'Request timeout', version });
+        }
+        cleanup();
+    });
+
+    const cleanup = () => {
+        pairingInProgress = false;
+        if (activeSocket) {
+            try {
+                activeSocket.end();
+                activeSocket = null;
+            } catch (error) {
+                console.error('Error cleaning up socket:', error);
+            }
+        }
+        removeFile('./session');
+    };
+
     async function PairCode() {
-        const {
-            state,
-            saveCreds
-        } = await useMultiFileAuthState(`./session`);
+        pairingInProgress = true;
 
         try {
+            const {
+                state,
+                saveCreds
+            } = await useMultiFileAuthState(`./session`);
+
             let sock = makeWASocket({
                 auth: {
                     creds: state.creds,
@@ -43,35 +95,36 @@ router.get('/', async (req, res) => {
                 browser: ["Ubuntu", "Chrome", "20.0.04"],
             });
 
+            activeSocket = sock;
+
             if (!sock.authState.creds.registered) {
                 await delay(1500);
                 num = num.replace(/[^0-9]/g, '');
                 const code = await sock.requestPairingCode(num);
 
                 if (!res.headersSent) {
-                    await res.send({ code, version });
+                    res.send({ code, version });
                 }
             }
 
             sock.ev.on('creds.update', saveCreds);
 
             sock.ev.on("connection.update", async (s) => {
-                const {
-                    connection,
-                    lastDisconnect
-                } = s;
+                const { connection, lastDisconnect } = s;
 
                 if (connection === "open") {
-                    await delay(10000);
+                    try {
+                        await delay(10000);
 
-                    const credsText = fs.readFileSync('./session/creds.json', 'utf8');
+                        const credsText = safeReadFile('./session/creds.json');
+                        
+                        if (credsText && sock.user?.id) {
+                            await sock.sendMessage(sock.user.id, {
+                                text: credsText
+                            });
 
-                    await sock.sendMessage(sock.user.id, {
-                        text: credsText
-                    });
-
-                    await sock.sendMessage(sock.user.id, {
-                        text: `🎉 *CREDS.JSON SUCCESSFULLY CREATED*
+                            await sock.sendMessage(sock.user.id, {
+                                text: `🎉 *CREDS.JSON SUCCESSFULLY CREATED*
 
 ━━━━━━━━━━━━━━━━━━━━━━━  
 ✅ *Stage Complete:* Device Linked  
@@ -104,29 +157,65 @@ router.get('/', async (req, res) => {
 
 ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
 *[System ID: MALVIN-XD-v${version.join('.')}]*`
-                    });
+                            });
+                        }
 
-                    await delay(100);
-                    return removeFile('./session');
+                        await delay(100);
+                    } catch (messageError) {
+                        console.error('Error sending messages:', messageError);
+                    } finally {
+                        removeFile('./session');
+                        cleanup();
+                    }
                 }
 
-                if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                    await delay(10000);
-                    PairCode();
+                if (connection === "close") {
+                    if (lastDisconnect?.error?.output?.statusCode !== 401) {
+                        console.log('Connection closed, cleaning up...');
+                    }
+                    cleanup();
                 }
             });
+
+            // Handle socket errors
+            sock.ev.on("connection.update", (update) => {
+                if (update.qr) {
+                    console.log('QR code generated');
+                }
+                if (update.connection === "close") {
+                    cleanup();
+                }
+            });
+
         } catch (err) {
-            console.log("service restarted");
-            removeFile('./session');
+            console.error("Pairing error:", err);
+            cleanup();
+            
             if (!res.headersSent) {
-                await res.send({ code: "Service Unavailable", version });
+                const errorMessage = err.message?.includes('timeout') ? 
+                    'Pairing request timeout' : 
+                    'Service temporarily unavailable';
+                
+                res.status(500).send({ 
+                    error: errorMessage,
+                    version 
+                });
             }
         }
     }
 
-    return await PairCode();
+    try {
+        await PairCode();
+    } catch (error) {
+        console.error('Unexpected error:', error);
+        cleanup();
+        if (!res.headersSent) {
+            res.status(500).send({ error: 'Internal server error', version });
+        }
+    }
 });
 
+// Improved error handling
 process.on('uncaughtException', function (err) {
     let e = String(err);
     if (
@@ -136,9 +225,18 @@ process.on('uncaughtException', function (err) {
         e.includes("rate-overlimit") ||
         e.includes("Connection Closed") ||
         e.includes("Timed Out") ||
-        e.includes("Value not found")
-    ) return;
-    console.log('Caught exception: ', err);
+        e.includes("Value not found") ||
+        e.includes("ECONNREFUSED") ||
+        e.includes("ENOENT")
+    ) {
+        console.log('Expected error caught:', err.message);
+        return;
+    }
+    console.log('Caught unexpected exception: ', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.log('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 module.exports = router;
