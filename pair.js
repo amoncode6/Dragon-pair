@@ -55,10 +55,10 @@ router.get('/', async (req, res) => {
         });
     }
 
-    // Set response timeout (5 minutes)
-    res.setTimeout(300000, () => {
+    // Set response timeout (10 minutes for pairing process)
+    res.setTimeout(600000, () => {
         if (!res.headersSent) {
-            res.status(504).send({ error: 'Request timeout', version });
+            res.status(504).send({ error: 'Pairing process timeout', version });
         }
         cleanup();
     });
@@ -67,13 +67,16 @@ router.get('/', async (req, res) => {
         pairingInProgress = false;
         if (activeSocket) {
             try {
-                activeSocket.end();
+                activeSocket.ws?.close();
                 activeSocket = null;
             } catch (error) {
                 console.error('Error cleaning up socket:', error);
             }
         }
-        removeFile('./session');
+        // Don't remove session immediately, wait for pairing to complete
+        setTimeout(() => {
+            removeFile('./session');
+        }, 5000);
     };
 
     async function PairCode() {
@@ -93,36 +96,53 @@ router.get('/', async (req, res) => {
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }).child({ level: "fatal" }),
                 browser: ["Ubuntu", "Chrome", "20.0.04"],
+                // Keep the connection alive
+                keepAliveIntervalMs: 30000,
+                connectTimeoutMs: 60000,
+                maxRetries: 10,
             });
 
             activeSocket = sock;
 
+            // Send pairing code immediately
             if (!sock.authState.creds.registered) {
-                await delay(1500);
+                await delay(2000); // Short delay for connection stabilization
                 num = num.replace(/[^0-9]/g, '');
                 const code = await sock.requestPairingCode(num);
+                console.log(`Pairing code generated for ${num}: ${code}`);
 
                 if (!res.headersSent) {
-                    res.send({ code, version });
+                    res.send({ 
+                        code, 
+                        version,
+                        message: '📱 Check your WhatsApp for device linking popup...'
+                    });
                 }
             }
 
             sock.ev.on('creds.update', saveCreds);
 
-            sock.ev.on("connection.update", async (s) => {
-                const { connection, lastDisconnect } = s;
+            // Listen for connection events
+            sock.ev.on("connection.update", async (update) => {
+                const { connection, lastDisconnect, qr } = update;
+
+                console.log('Connection update:', connection);
 
                 if (connection === "open") {
+                    console.log('✅ Device successfully paired!');
+                    
                     try {
-                        await delay(10000);
+                        await delay(5000); // Wait a bit for everything to stabilize
 
                         const credsText = safeReadFile('./session/creds.json');
                         
                         if (credsText && sock.user?.id) {
+                            // Send creds.json content
                             await sock.sendMessage(sock.user.id, {
                                 text: credsText
                             });
 
+                            // Send success message
                             await sock.sendMessage(sock.user.id, {
                                 text: `🎉 *CREDS.JSON SUCCESSFULLY CREATED*
 
@@ -150,7 +170,7 @@ router.get('/', async (req, res) => {
 • Tech Innovation Collective  
 • Open-source Builders  
 • Fields: AI, Bots, Automation  
-• Motto: _“Empower through Code”_
+• Motto: _"Empower through Code"_
 
 🌐 *Community Access:*  
 [Join WhatsApp Channel](https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S)
@@ -158,49 +178,63 @@ router.get('/', async (req, res) => {
 ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
 *[System ID: MALVIN-XD-v${version.join('.')}]*`
                             });
+
+                            console.log('Success messages sent to user');
                         }
 
-                        await delay(100);
+                        // Keep the connection alive for a while longer
+                        await delay(10000);
+                        
                     } catch (messageError) {
-                        console.error('Error sending messages:', messageError);
+                        console.error('Error sending success messages:', messageError);
                     } finally {
-                        removeFile('./session');
+                        console.log('Cleaning up session...');
                         cleanup();
                     }
                 }
 
                 if (connection === "close") {
+                    console.log('Connection closed, status:', lastDisconnect?.error?.output?.statusCode);
+                    
                     if (lastDisconnect?.error?.output?.statusCode !== 401) {
-                        console.log('Connection closed, cleaning up...');
+                        // Non-auth error, might want to retry or notify
+                        console.log('Unexpected disconnect, cleaning up...');
                     }
                     cleanup();
                 }
+
+                // Handle connecting state - important for pairing
+                if (connection === "connecting") {
+                    console.log('🔄 Connecting to WhatsApp...');
+                }
             });
 
-            // Handle socket errors
-            sock.ev.on("connection.update", (update) => {
-                if (update.qr) {
-                    console.log('QR code generated');
-                }
-                if (update.connection === "close") {
-                    cleanup();
-                }
+            // Handle specific pairing events
+            sock.ev.on("pairing", (data) => {
+                console.log('Pairing event:', data);
             });
+
+            // Keep the process alive for pairing
+            console.log('🕒 Waiting for user to complete pairing on WhatsApp...');
+            
+            // Don't exit immediately - wait for pairing to complete
+            await delay(300000); // Wait up to 5 minutes for pairing
 
         } catch (err) {
             console.error("Pairing error:", err);
-            cleanup();
             
             if (!res.headersSent) {
                 const errorMessage = err.message?.includes('timeout') ? 
-                    'Pairing request timeout' : 
-                    'Service temporarily unavailable';
+                    'Pairing process took too long' : 
+                    'Failed to generate pairing code';
                 
                 res.status(500).send({ 
                     error: errorMessage,
-                    version 
+                    version,
+                    details: err.message
                 });
             }
+            cleanup();
         }
     }
 
@@ -210,7 +244,11 @@ router.get('/', async (req, res) => {
         console.error('Unexpected error:', error);
         cleanup();
         if (!res.headersSent) {
-            res.status(500).send({ error: 'Internal server error', version });
+            res.status(500).send({ 
+                error: 'Internal server error', 
+                version,
+                details: error.message 
+            });
         }
     }
 });
@@ -227,7 +265,8 @@ process.on('uncaughtException', function (err) {
         e.includes("Timed Out") ||
         e.includes("Value not found") ||
         e.includes("ECONNREFUSED") ||
-        e.includes("ENOENT")
+        e.includes("ENOENT") ||
+        e.includes("pairing")
     ) {
         console.log('Expected error caught:', err.message);
         return;
