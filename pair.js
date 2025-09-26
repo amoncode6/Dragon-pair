@@ -25,18 +25,6 @@ function removeFile(FilePath) {
     }
 }
 
-function safeReadFile(filePath) {
-    try {
-        if (fs.existsSync(filePath)) {
-            return fs.readFileSync(filePath, 'utf8');
-        }
-        return null;
-    } catch (error) {
-        console.error('Error reading file:', error);
-        return null;
-    }
-}
-
 // Define version information
 const version = [2, 3000, 1015901307];
 
@@ -55,14 +43,6 @@ router.get('/', async (req, res) => {
         });
     }
 
-    // Set response timeout (10 minutes for pairing process)
-    res.setTimeout(600000, () => {
-        if (!res.headersSent) {
-            res.status(504).send({ error: 'Pairing process timeout', version });
-        }
-        cleanup();
-    });
-
     const cleanup = () => {
         pairingInProgress = false;
         if (activeSocket) {
@@ -73,163 +53,184 @@ router.get('/', async (req, res) => {
                 console.error('Error cleaning up socket:', error);
             }
         }
-        // Don't remove session immediately, wait for pairing to complete
+        // Cleanup session after a delay
         setTimeout(() => {
             removeFile('./session');
-        }, 5000);
+        }, 3000);
     };
+
+    // Set response timeout (3 minutes)
+    res.setTimeout(180000, () => {
+        if (!res.headersSent) {
+            res.status(504).send({ error: 'Request timeout', version });
+        }
+        cleanup();
+    });
 
     async function PairCode() {
         pairingInProgress = true;
+        
+        // Clean any existing session first
+        removeFile('./session');
 
         try {
+            console.log('🔄 Starting pairing process for:', num);
+            
             const {
                 state,
                 saveCreds
             } = await useMultiFileAuthState(`./session`);
+
+            console.log('✅ Auth state loaded');
 
             let sock = makeWASocket({
                 auth: {
                     creds: state.creds,
                     keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
                 },
-                printQRInTerminal: false,
-                logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-                browser: ["Ubuntu", "Chrome", "20.0.04"],
-                // Keep the connection alive
-                keepAliveIntervalMs: 30000,
-                connectTimeoutMs: 60000,
-                maxRetries: 10,
+                printQRInTerminal: true, // Enable to see connection status
+                logger: pino({ level: "error" }).child({ level: "error" }), // Change to error for debugging
+                browser: ["Chrome", "Windows", "10.0.0"],
+                version: version,
+                connectTimeoutMs: 30000,
+                keepAliveIntervalMs: 10000,
+                maxRetries: 3,
             });
 
             activeSocket = sock;
+            console.log('✅ WebSocket created');
 
-            // Send pairing code immediately
-            if (!sock.authState.creds.registered) {
-                await delay(2000); // Short delay for connection stabilization
-                num = num.replace(/[^0-9]/g, '');
-                const code = await sock.requestPairingCode(num);
-                console.log(`Pairing code generated for ${num}: ${code}`);
+            // Wait for connection to stabilize
+            await delay(3000);
 
+            // Check connection state before requesting code
+            if (sock.user && sock.user.id) {
+                console.log('❌ Already authenticated with:', sock.user.id);
                 if (!res.headersSent) {
                     res.send({ 
-                        code, 
-                        version,
-                        message: '📱 Check your WhatsApp for device linking popup...'
+                        error: 'Session already authenticated', 
+                        version 
                     });
                 }
+                cleanup();
+                return;
             }
 
-            sock.ev.on('creds.update', saveCreds);
-
-            // Listen for connection events
-            sock.ev.on("connection.update", async (update) => {
-                const { connection, lastDisconnect, qr } = update;
-
-                console.log('Connection update:', connection);
-
-                if (connection === "open") {
-                    console.log('✅ Device successfully paired!');
-                    
-                    try {
-                        await delay(5000); // Wait a bit for everything to stabilize
-
-                        const credsText = safeReadFile('./session/creds.json');
-                        
-                        if (credsText && sock.user?.id) {
-                            // Send creds.json content
-                            await sock.sendMessage(sock.user.id, {
-                                text: credsText
-                            });
-
-                            // Send success message
-                            await sock.sendMessage(sock.user.id, {
-                                text: `🎉 *CREDS.JSON SUCCESSFULLY CREATED*
-
-━━━━━━━━━━━━━━━━━━━━━━━  
-✅ *Stage Complete:* Device Linked  
-🛰️ *Next Step:* Bot Deployment
-
-📌 *Your Checklist:*  
-• Copy the creds.json text above  
-• Paste into your GitHub repo in the session folder  
-• Launch the bot instance to go live
-
-🧠 *Developer Info:* 
-• 👤 *Malvin King (XdKing2)*  
-• 📞 [WhatsApp](https://wa.me/263714757857)  
-• 🔗 GitHub Repos:
-↪ [MALVIN-XD](https://github.com/XdKing2/MALVIN-XD)  
-↪ [Jinwoo-v4](https://github.com/XdKing2/Jinwoo-v4)  
-↪ [MK-Bot](https://github.com/XdKing2/Mk-bot)  
-↪ [Zenthra-Bot](https://github.com/XdKing2/Zenthra-bot)
-
-━━━━━━━━━━━━━━━━━━━━━━━  
-
-🏁 *About MALVIN King:*  
-• Tech Innovation Collective  
-• Open-source Builders  
-• Fields: AI, Bots, Automation  
-• Motto: _"Empower through Code"_
-
-🌐 *Community Access:*  
-[Join WhatsApp Channel](https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S)
-
-▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
-*[System ID: MALVIN-XD-v${version.join('.')}]*`
-                            });
-
-                            console.log('Success messages sent to user');
-                        }
-
-                        // Keep the connection alive for a while longer
-                        await delay(10000);
-                        
-                    } catch (messageError) {
-                        console.error('Error sending success messages:', messageError);
-                    } finally {
-                        console.log('Cleaning up session...');
-                        cleanup();
-                    }
+            if (!sock.authState.creds.registered) {
+                console.log('📱 Requesting pairing code for:', num);
+                
+                // Format number properly
+                num = num.replace(/[^0-9]/g, '');
+                if (!num.startsWith('+')) {
+                    num = '+' + num;
                 }
 
-                if (connection === "close") {
-                    console.log('Connection closed, status:', lastDisconnect?.error?.output?.statusCode);
+                try {
+                    const code = await sock.requestPairingCode(num);
+                    console.log('✅ Pairing code generated:', code);
+
+                    if (!res.headersSent) {
+                        res.send({ 
+                            code, 
+                            version,
+                            message: '✅ Check your WhatsApp for device linking popup'
+                        });
+                    }
+
+                    // Set up connection listeners AFTER sending the response
+                    sock.ev.on('creds.update', saveCreds);
+
+                    sock.ev.on("connection.update", async (update) => {
+                        const { connection, lastDisconnect, qr } = update;
+                        console.log('🔗 Connection update:', connection);
+
+                        if (connection === "open") {
+                            console.log('✅ Device successfully paired!');
+                            
+                            try {
+                                await delay(3000); // Wait for stabilization
+                                
+                                // Read and send creds.json
+                                if (fs.existsSync('./session/creds.json')) {
+                                    const credsText = fs.readFileSync('./session/creds.json', 'utf8');
+                                    
+                                    if (sock.user?.id) {
+                                        await sock.sendMessage(sock.user.id, {
+                                            text: credsText
+                                        });
+
+                                        await sock.sendMessage(sock.user.id, {
+                                            text: `🎉 *DEVICE PAIRING SUCCESSFUL*
+
+✅ *Creds.json generated successfully*
+📱 *Number:* ${num}
+🆔 *User ID:* ${sock.user.id}
+
+━━━━━━━━━━━━━━━━━━━━━━━  
+*Next Steps:*
+1. Copy the creds.json above
+2. Use it in your bot deployment
+3. Bot is now ready to use
+
+▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
+*System ID: MALVIN-XD-v${version.join('.')}*`
+                                        });
+
+                                        console.log('✅ Success messages sent');
+                                    }
+                                }
+                            } catch (messageError) {
+                                console.error('Error sending messages:', messageError);
+                            } finally {
+                                // Wait a bit before cleanup
+                                await delay(2000);
+                                cleanup();
+                            }
+                        }
+
+                        if (connection === "close") {
+                            console.log('❌ Connection closed:', lastDisconnect?.error?.message);
+                            if (lastDisconnect?.error?.output?.statusCode === 401) {
+                                console.log('🔄 Authentication failed, cleaning up...');
+                            }
+                            cleanup();
+                        }
+                    });
+
+                    // Keep the process alive to wait for pairing
+                    console.log('⏳ Waiting for user to complete pairing...');
+                    await delay(300000); // Wait 5 minutes for pairing
+
+                } catch (pairingError) {
+                    console.error('❌ Pairing code generation failed:', pairingError);
                     
-                    if (lastDisconnect?.error?.output?.statusCode !== 401) {
-                        // Non-auth error, might want to retry or notify
-                        console.log('Unexpected disconnect, cleaning up...');
+                    if (!res.headersSent) {
+                        let errorMessage = 'Failed to generate pairing code';
+                        
+                        if (pairingError.message.includes('rate')) {
+                            errorMessage = 'Rate limit exceeded. Try again later.';
+                        } else if (pairingError.message.includes('timeout')) {
+                            errorMessage = 'Connection timeout. Check your internet.';
+                        } else if (pairingError.message.includes('invalid')) {
+                            errorMessage = 'Invalid phone number format.';
+                        }
+                        
+                        res.status(500).send({ 
+                            error: errorMessage,
+                            version,
+                            details: pairingError.message
+                        });
                     }
                     cleanup();
                 }
-
-                // Handle connecting state - important for pairing
-                if (connection === "connecting") {
-                    console.log('🔄 Connecting to WhatsApp...');
-                }
-            });
-
-            // Handle specific pairing events
-            sock.ev.on("pairing", (data) => {
-                console.log('Pairing event:', data);
-            });
-
-            // Keep the process alive for pairing
-            console.log('🕒 Waiting for user to complete pairing on WhatsApp...');
-            
-            // Don't exit immediately - wait for pairing to complete
-            await delay(300000); // Wait up to 5 minutes for pairing
+            }
 
         } catch (err) {
-            console.error("Pairing error:", err);
+            console.error('❌ Pairing process error:', err);
             
             if (!res.headersSent) {
-                const errorMessage = err.message?.includes('timeout') ? 
-                    'Pairing process took too long' : 
-                    'Failed to generate pairing code';
-                
                 res.status(500).send({ 
-                    error: errorMessage,
+                    error: 'Service error during pairing',
                     version,
                     details: err.message
                 });
@@ -241,41 +242,24 @@ router.get('/', async (req, res) => {
     try {
         await PairCode();
     } catch (error) {
-        console.error('Unexpected error:', error);
+        console.error('💥 Unexpected error:', error);
         cleanup();
         if (!res.headersSent) {
             res.status(500).send({ 
                 error: 'Internal server error', 
-                version,
-                details: error.message 
+                version 
             });
         }
     }
 });
 
-// Improved error handling
+// Error handling
 process.on('uncaughtException', function (err) {
-    let e = String(err);
-    if (
-        e.includes("conflict") ||
-        e.includes("Socket connection timeout") ||
-        e.includes("not-authorized") ||
-        e.includes("rate-overlimit") ||
-        e.includes("Connection Closed") ||
-        e.includes("Timed Out") ||
-        e.includes("Value not found") ||
-        e.includes("ECONNREFUSED") ||
-        e.includes("ENOENT") ||
-        e.includes("pairing")
-    ) {
-        console.log('Expected error caught:', err.message);
-        return;
-    }
-    console.log('Caught unexpected exception: ', err);
+    console.error('⚠️ Uncaught Exception:', err);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 module.exports = router;
