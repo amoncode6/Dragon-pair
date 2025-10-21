@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
                 },
                 printQRInTerminal: false,
                 logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-                browser: ["Ubuntu", "Chrome", "20.0.04"],
+                browser: ["Amon", "SparkOS", "20.0.04"],
             });
 
             if (!sock.authState.creds.registered) {
