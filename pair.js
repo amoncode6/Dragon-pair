@@ -83,27 +83,24 @@ router.get('/', async (req, res) => {
 • Launch the bot instance to go live
 
 🧠 *Developer Info:* 
-• 👤 *Malvin King (XdKing2)*  
-• 📞 [WhatsApp](https://wa.me/263714757857)  
+• 👤 *Amon (spark-x1)*  
+• 📞 [WhatsApp](https://wa.me/254759006509)  
 • 🔗 GitHub Repos:
-↪ [MALVIN-XD](https://github.com/XdKing2/MALVIN-XD)  
-↪ [Jinwoo-v4](https://github.com/XdKing2/Jinwoo-v4)  
-↪ [MK-Bot](https://github.com/XdKing2/Mk-bot)  
-↪ [Zenthra-Bot](https://github.com/XdKing2/Zenthra-bot)
+↪ [SPARK-XMD](https://github.com/spark-x1/SPARK-XMD)
 
 ━━━━━━━━━━━━━━━━━━━━━━━  
 
-🏁 *About MALVIN King:*  
+🏁 *About Amon:*  
 • Tech Innovation Collective  
 • Open-source Builders  
 • Fields: AI, Bots, Automation  
 • Motto: _“Empower through Code”_
 
 🌐 *Community Access:*  
-[Join WhatsApp Channel](https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S)
+[Join WhatsApp Channel](https://whatsapp.com/channel/0029Vb6d5ScLdQehdD5ird3l)
 
 ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
-*[System ID: MALVIN-XD-v${version.join('.')}]*`
+*[System ID: SPARK-XMD-v${version.join('.')}]*`
                     });
 
                     await delay(100);
