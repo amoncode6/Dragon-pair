@@ -1,3 +1,5 @@
+
+
 const express = require('express');
 const fs = require('fs');
 let router = express.Router();
@@ -9,141 +11,134 @@ const {
     makeCacheableSignalKeyStore
 } = require("@whiskeysockets/baileys");
 
+function removeFile(FilePath) {
+    if (!fs.existsSync(FilePath)) return false;
+    fs.rmSync(FilePath, { recursive: true, force: true });
+}
+
 // Define version information
 const version = [2, 3000, 1015901307];
 
-function removeFile(FilePath) {
-    try {
-        if (fs.existsSync(FilePath)) {
-            fs.rmSync(FilePath, { recursive: true, force: true });
-            return true;
-        }
-    } catch (error) {
-        console.error('Error removing file:', error);
-    }
-    return false;
-}
-
 router.get('/', async (req, res) => {
-    const num = req.query.number;
+    let num = req.query.number;
 
-    // Validate number
     if (!num || !/^\d{8,15}$/.test(num)) {
-        return res.status(400).send({ 
-            error: '❌ Invalid number. Use 8-15 digits without + or spaces.',
-            example: '/pair?number=263714757857'
-        });
+        return res.status(400).send({ error: '❌ Invalid or missing number parameter' });
     }
 
-    console.log(`🔧 Pairing request for: ${num}`);
+    async function PairCode() {
+        const {
+            state,
+            saveCreds
+        } = await useMultiFileAuthState(`./session`);
 
-    // Clean any existing session first
-    removeFile('./session');
+        try {
+            let sock = makeWASocket({
+                auth: {
+                    creds: state.creds,
+                    keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
+                },
+                printQRInTerminal: false,
+                logger: pino({ level: "fatal" }).child({ level: "fatal" }),
+                browser: ["Ubuntu", "Chrome", "20.0.04"],
+            });
 
-    try {
-        // Create auth state
-        const { state, saveCreds } = await useMultiFileAuthState('./session');
-        
-        console.log('✅ Auth state created');
+            if (!sock.authState.creds.registered) {
+                await delay(1500);
+                num = num.replace(/[^0-9]/g, '');
+                const code = await sock.requestPairingCode(num);
 
-        // Create simple socket connection
-        const sock = makeWASocket({
-            auth: {
-                creds: state.creds,
-                keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
-            },
-            printQRInTerminal: true,
-            logger: pino({ level: "silent" }),
-            browser: ["Chrome", "Windows", "10.0.0"],
-        });
-
-        console.log('✅ Socket created');
-
-        // Wait a moment for connection
-        await delay(2000);
-
-        // Request pairing code
-        console.log(`📱 Requesting pairing code for: ${num}`);
-        
-        const formattedNum = num.startsWith('+') ? num : `+${num}`;
-        const code = await sock.requestPairingCode(formattedNum);
-        
-        console.log(`✅ Pairing code generated: ${code}`);
-
-        // Send success response
-        res.send({
-            success: true,
-            code: code,
-            number: formattedNum,
-            version: version,
-            message: '✅ Check your WhatsApp for the device linking popup!'
-        });
-
-        // Simple connection handler for completion
-        sock.ev.on('creds.update', saveCreds);
-        
-        sock.ev.on("connection.update", (update) => {
-            const { connection } = update;
-            console.log(`🔗 Connection status: ${connection}`);
-            
-            if (connection === "open") {
-                console.log('🎉 Device paired successfully!');
-                // Optional: Send success message or cleanup
-                setTimeout(() => {
-                    removeFile('./session');
-                }, 5000);
+                if (!res.headersSent) {
+                    await res.send({ code, version });
+                }
             }
-            
-            if (connection === "close") {
-                console.log('❌ Connection closed');
-                removeFile('./session');
-            }
-        });
 
-        // Keep process alive for 2 minutes
-        setTimeout(() => {
-            try {
-                sock.ws.close();
-                removeFile('./session');
-                console.log('🔄 Cleanup completed');
-            } catch (e) {
-                console.log('Cleanup error:', e.message);
-            }
-        }, 120000);
+            sock.ev.on('creds.update', saveCreds);
 
-    } catch (error) {
-        console.error('❌ Pairing failed:', error);
-        
-        // Cleanup on error
-        removeFile('./session');
-        
-        let errorMessage = 'Failed to generate pairing code';
-        
-        if (error.message.includes('rate')) {
-            errorMessage = '⚠️ Rate limit exceeded. Wait 10 minutes and try again.';
-        } else if (error.message.includes('invalid')) {
-            errorMessage = '❌ Invalid phone number format.';
-        } else if (error.message.includes('timeout')) {
-            errorMessage = '⏰ Connection timeout. Check your internet.';
-        } else if (error.message.includes('not registered')) {
-            errorMessage = '❌ Phone number not registered on WhatsApp.';
+            sock.ev.on("connection.update", async (s) => {
+                const {
+                    connection,
+                    lastDisconnect
+                } = s;
+
+                if (connection === "open") {
+                    await delay(10000);
+
+                    const credsText = fs.readFileSync('./session/creds.json', 'utf8');
+
+                    await sock.sendMessage(sock.user.id, {
+                        text: credsText
+                    });
+
+                    await sock.sendMessage(sock.user.id, {
+                        text: `🎉 *CREDS.JSON SUCCESSFULLY CREATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━  
+✅ *Stage Complete:* Device Linked  
+🛰️ *Next Step:* Bot Deployment
+
+📌 *Your Checklist:*  
+• Copy the creds.json text above  
+• Paste into your GitHub repo in the session folder  
+• Launch the bot instance to go live
+
+🧠 *Developer Info:* 
+• 👤 *Malvin King (XdKing2)*  
+• 📞 [WhatsApp](https://wa.me/263714757857)  
+• 🔗 GitHub Repos:
+↪ [MALVIN-XD](https://github.com/XdKing2/MALVIN-XD)  
+↪ [Jinwoo-v4](https://github.com/XdKing2/Jinwoo-v4)  
+↪ [MK-Bot](https://github.com/XdKing2/Mk-bot)  
+↪ [Zenthra-Bot](https://github.com/XdKing2/Zenthra-bot)
+
+━━━━━━━━━━━━━━━━━━━━━━━  
+
+🏁 *About MALVIN King:*  
+• Tech Innovation Collective  
+• Open-source Builders  
+• Fields: AI, Bots, Automation  
+• Motto: _“Empower through Code”_
+
+🌐 *Community Access:*  
+[Join WhatsApp Channel](https://whatsapp.com/channel/0029VbB3YxTDJ6H15SKoBv3S)
+
+▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰  
+*[System ID: MALVIN-XD-v${version.join('.')}]*`
+                    });
+
+                    await delay(100);
+                    return removeFile('./session');
+                }
+
+                if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
+                    await delay(10000);
+                    PairCode();
+                }
+            });
+        } catch (err) {
+            console.log("service restarted");
+            removeFile('./session');
+            if (!res.headersSent) {
+                await res.send({ code: "Service Unavailable", version });
+            }
         }
-        
-        res.status(500).send({
-            error: errorMessage,
-            details: error.message,
-            version: version
-        });
     }
+
+    return await PairCode();
 });
 
-// Simple error handling
-process.on('uncaughtException', (err) => {
-    console.error('💥 Uncaught Exception:', err.message);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 Unhandled Rejection:', reason);
+process.on('uncaughtException', function (err) {
+    let e = String(err);
+    if (
+        e.includes("conflict") ||
+        e.includes("Socket connection timeout") ||
+        e.includes("not-authorized") ||
+        e.includes("rate-overlimit") ||
+        e.includes("Connection Closed") ||
+        e.includes("Timed Out") ||
+        e.includes("Value not found")
+    ) return;
+    console.log('Caught exception: ', err);
 });
 
 module.exports = router;
